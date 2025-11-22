@@ -83,7 +83,7 @@ def main():
         st.markdown("---")
         st.subheader("Rechercher une entreprise")
 
-        company_name = st.text_input("Nom de l'entreprise:", placeholder="Ex: Yas Madagascar")
+        company_name = st.text_input("Nom de l'entreprise:", placeholder="")
 
         col1, col2 = st.columns([1, 1])
         with col1:
@@ -132,7 +132,7 @@ def main():
 
         st.info(f"**Résumé:** {st.session_state.current_resume}")
 
-        comment = st.text_area("Commentaire (optionnel):", placeholder="Ex: Contact établi, RDV prévu...")
+        comment = st.text_area("Commentaire (optionnel):", placeholder="")
 
         col1, col2 = st.columns([1, 1])
         with col1:
@@ -178,10 +178,8 @@ def main():
         else:
             for i, company in enumerate(companies):
                 with st.expander(f"{company['company_name']}", expanded=False):
-                    st.markdown(f"**Résumé:** {company['resume']}")
-                    st.markdown(f"**Commentaires:** {company['comments'] if company['comments'] else 'Aucun'}")
-                    st.markdown(f"**Ajouté le:** {company['search_date']}")
-                    st.markdown(f"**Dernière mise à jour:** {company['last_updated']}")
+                    st.markdown(f"Résumé: {company['resume']}")
+                    st.markdown(f"Commentaires: {company['comments'] if company['comments'] else 'Aucun'}")
 
                     # Option pour ajouter un commentaire
                     new_comment = st.text_input(f"Ajouter un commentaire:", key=f"comment_{i}")

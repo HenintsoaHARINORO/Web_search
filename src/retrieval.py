@@ -1,4 +1,4 @@
-import csv
+import csv, json
 import os
 from typing import List, Dict
 from langchain_ollama import OllamaEmbeddings
@@ -15,17 +15,56 @@ class PortfolioRAG:
     def __init__(self, csv_file: str = PORTFOLIO_FILE, vector_store_path: str = VECTOR_STORE_PATH):
         self.csv_file = csv_file
         self.vector_store_path = vector_store_path
-        self.embeddings = OllamaEmbeddings(
-            model=OLLAMA_MODEL,
-            base_url=OLLAMA_API
-        )
-        self.llm = OllamaLLM(
-            model=OLLAMA_MODEL,
-            base_url=OLLAMA_API,
-            temperature=0.3
-        )
+        self.metadata_file = os.path.join(vector_store_path, "index_metadata.json")
+        self.embeddings = OllamaEmbeddings(model=OLLAMA_MODEL, base_url=OLLAMA_API)
+        self.llm = OllamaLLM(model=OLLAMA_MODEL, base_url=OLLAMA_API, temperature=0.3)
         self.vectorstore = None
         self.qa_chain = None
+
+    def _get_csv_modification_time(self) -> float:
+        """Get the last modification time of the CSV file."""
+        if os.path.exists(self.csv_file):
+            return os.path.getmtime(self.csv_file)
+        return 0
+
+    def _load_index_metadata(self) -> dict:
+        """Load metadata about the last indexation."""
+        if os.path.exists(self.metadata_file):
+            with open(self.metadata_file, 'r') as f:
+                return json.load(f)
+        return {"last_csv_mtime": 0, "indexed_companies": []}
+
+    def _update_vectorstore_incrementally(self):
+        """Identify new documents and merge them with the existing index."""
+        metadata = self._load_index_metadata()
+        existing_company_names = set(metadata.get("indexed_companies", []))
+
+        # Also check from vectorstore if metadata is empty
+        if not existing_company_names and self.vectorstore:
+            for doc_id in self.vectorstore.docstore._dict:
+                doc = self.vectorstore.docstore.lookup(doc_id)
+                if doc and doc.metadata.get("company_name"):
+                    existing_company_names.add(doc.metadata["company_name"])
+
+        all_documents = self.load_portfolio_data()
+        new_documents = [
+            doc for doc in all_documents
+            if doc.metadata["company_name"] not in existing_company_names
+        ]
+
+        if not new_documents:
+            print("Aucune nouvelle donnée à indexer. Le vector store est à jour.")
+            return
+
+        print(f"Indexation de {len(new_documents)} nouveau(x) document(s)...")
+        new_faiss_index = FAISS.from_documents(new_documents, self.embeddings)
+        self.vectorstore.merge_from(new_faiss_index)
+        self.vectorstore.save_local(self.vector_store_path)
+
+        # Update metadata with all companies
+        all_company_names = [doc.metadata["company_name"] for doc in all_documents]
+        self._save_index_metadata(all_company_names)
+        print(f"Fusion réussie : {len(new_documents)} documents ajoutés.")
 
     def load_portfolio_data(self) -> List[Document]:
         documents = []
@@ -61,34 +100,65 @@ Commentaires:
         print(f"{len(documents)} entreprise(s) chargée(s)")
         return documents
 
+    def _save_index_metadata(self, indexed_companies: List[str]):
+        """Save metadata about the current indexation."""
+        os.makedirs(os.path.dirname(self.metadata_file), exist_ok=True)
+        metadata = {
+            "last_csv_mtime": self._get_csv_modification_time(),
+            "indexed_companies": indexed_companies
+        }
+        with open(self.metadata_file, 'w') as f:
+            json.dump(metadata, f)
+
+    def _needs_update(self) -> bool:
+        """Check if the CSV file was modified since last indexation."""
+        metadata = self._load_index_metadata()
+        current_mtime = self._get_csv_modification_time()
+        return current_mtime > metadata["last_csv_mtime"]
+
     def build_vectorstore(self, force_rebuild: bool = False):
-        """Construit ou charge le vector store FAISS"""
+        """Build or load the FAISS vector store with automatic update detection."""
+        if not os.path.exists(self.csv_file):
+            print(f"❌ Fichier source CSV {self.csv_file} non trouvé.")
+            return
 
-        # Vérifier si un vector store existe déjà
-        if os.path.exists(self.vector_store_path) and not force_rebuild:
+        vectorstore_exists = os.path.exists(self.vector_store_path)
+        needs_update = self._needs_update()
+
+        if vectorstore_exists and not force_rebuild:
             print("Chargement du vector store existant...")
-            self.vectorstore = FAISS.load_local(
-                self.vector_store_path,
-                self.embeddings,
-                allow_dangerous_deserialization=True
-            )
-            print("Vector store chargé")
-        else:
-            print("Construction du vector store...")
-            documents = self.load_portfolio_data()
+            try:
+                self.vectorstore = FAISS.load_local(
+                    self.vector_store_path,
+                    self.embeddings,
+                    allow_dangerous_deserialization=True
+                )
+                print("Vector store chargé.")
 
+                # Check if CSV was modified -> incremental update
+                if needs_update:
+                    print("📝 Modifications détectées dans le CSV...")
+                    self._update_vectorstore_incrementally()
+                else:
+                    print("Index déjà à jour.")
+                return
+            except Exception as e:
+                print(f"Erreur lors du chargement : {e}. Reconstruction forcée...")
+                force_rebuild = True
+
+        if not vectorstore_exists or force_rebuild:
+            print("Construction complète du vector store...")
+            documents = self.load_portfolio_data()
             if not documents:
                 print("Aucune donnée à indexer")
                 return
 
-            # Créer le vector store
-            self.vectorstore = FAISS.from_documents(
-                documents,
-                self.embeddings
-            )
-
-            # Sauvegarder pour une utilisation future
+            self.vectorstore = FAISS.from_documents(documents, self.embeddings)
             self.vectorstore.save_local(self.vector_store_path)
+
+            # Save metadata
+            company_names = [doc.metadata["company_name"] for doc in documents]
+            self._save_index_metadata(company_names)
             print(f"Vector store créé et sauvegardé dans {self.vector_store_path}")
 
     def rebuild_index(self):
@@ -101,7 +171,8 @@ Commentaires:
         if self.vectorstore is None:
             print("Vector store non initialisé")
             return
-
+        num_docs = len(self.vectorstore.docstore._dict)
+        k_value = max(num_docs, 2)
         # Template de prompt personnalisé
         template = """Tu es un assistant spécialisé dans l'analyse de portefeuille d'entreprises.
 Utilise les informations suivantes pour répondre à la question de manière précise et professionnelle.
@@ -113,8 +184,6 @@ Question: {question}
 
 Instructions:
 - Si la question concerne une entreprise spécifique, donne tous les détails pertinents
-- Si la question est générale, résume les entreprises pertinentes
-- Si l'information n'est pas dans le contexte, dis-le clairement
 - Réponds toujours en français
 
 Réponse:"""
@@ -128,7 +197,7 @@ Réponse:"""
             llm=self.llm,
             chain_type="stuff",
             retriever=self.vectorstore.as_retriever(
-                search_kwargs={"k": 3}  # nombre de documents à retourner
+                search_kwargs={"k": k_value}  # nombre de documents à retourner
             ),
             chain_type_kwargs={"prompt": PROMPT},
             return_source_documents=True
