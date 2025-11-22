@@ -3,14 +3,14 @@ from typing import List, Tuple
 import requests
 import re
 from playwright.sync_api import sync_playwright
-from config import GOOGLE_API_KEY, GOOGLE_CX, OLLAMA_API_URL, SCRAPE_MAX_CHARS, SCRAPE_TIMEOUT, REQUEST_TIMEOUT
+from config import GOOGLE_API_URL, GOOGLE_API_KEY, GOOGLE_CX, OLLAMA_API_URL, SCRAPE_MAX_CHARS, SCRAPE_TIMEOUT, REQUEST_TIMEOUT
 
 
 def web_search(query: str, num_results: int = 1) -> Tuple[List[str], str]:
     """Search using Google Custom Search API - returns both URLs and snippets"""
     try:
         response = requests.get(
-            "https://www.googleapis.com/customsearch/v1",
+            GOOGLE_API_URL,
             params={
                 "key": GOOGLE_API_KEY,
                 "cx": GOOGLE_CX,

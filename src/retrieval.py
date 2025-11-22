@@ -41,8 +41,6 @@ class PortfolioRAG:
                 # Créer un contenu structuré pour chaque entreprise
                 content = f"""
 Entreprise: {row['company_name']}
-Date d'ajout: {row['search_date']}
-Dernière mise à jour: {row['last_updated']}
 
 Résumé:
 {row['resume']}
@@ -55,8 +53,6 @@ Commentaires:
                     page_content=content,
                     metadata={
                         "company_name": row['company_name'],
-                        "search_date": row['search_date'],
-                        "last_updated": row['last_updated'],
                         "source": "portfolio_csv"
                     }
                 )
@@ -178,39 +174,3 @@ def initialize_rag(rebuild: bool = False) -> PortfolioRAG:
     rag.build_vectorstore(force_rebuild=rebuild)
     rag.setup_qa_chain()
     return rag
-
-
-# Exemples d'utilisation
-if __name__ == "__main__":
-    print("=" * 80)
-    print("SYSTÈME RAG - PORTFOLIO D'ENTREPRISES")
-    print("=" * 80)
-
-    # Initialiser le RAG
-    rag = initialize_rag(rebuild=True)  # rebuild=True pour forcer la reconstruction
-
-    # Exemple 1: Liste des entreprises
-    print("\nListe des entreprises:")
-    companies = rag.list_all_companies()
-    for company in companies:
-        print(f"   - {company}")
-
-    # Exemple 2: Recherche par similarité
-    print("\nRecherche par mot-clé 'formation':")
-    results = rag.find_companies_by_keyword("formation")
-    for i, doc in enumerate(results, 1):
-        print(f"\n   Résultat {i}: {doc.metadata['company_name']}")
-        print(f"   Extrait: {doc.page_content[:200]}...")
-
-    # Exemple 3: Questions en langage naturel
-    print("\nQuestions en langage naturel:")
-
-    questions = [
-        "Quelles entreprises dans mon portefeuille sont déjà contactées ?",
-    ]
-
-    for question in questions:
-        print(f"\n Question: {question}")
-        response = rag.ask(question)
-        print(f"Réponse: {response['answer']}")
-        print(f"Sources: {len(response['sources'])} document(s)")

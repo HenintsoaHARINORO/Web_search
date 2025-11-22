@@ -35,7 +35,7 @@ def reset_to_menu():
 
 
 def main():
-    st.title("📊 Assistant Portfolio d'Entreprises")
+    st.title("Assistant Portfolio d'Entreprises")
 
     # Écran de démarrage
     if not st.session_state.started:

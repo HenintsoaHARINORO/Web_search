@@ -3,3 +3,4 @@ data/
 portfolio_vectorstore/
 __pycache__/
 .env
+.idea

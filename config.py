@@ -11,7 +11,7 @@ BASE_DIR = Path(__file__).resolve().parent
 # API Configuration
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 GOOGLE_CX = os.getenv("GOOGLE_CX")
-
+GOOGLE_API_URL = os.getenv("GOOGLE_API_URL")
 # Ollama Configuration
 OLLAMA_API_URL = os.getenv("OLLAMA_API_URL", "http://localhost:11434/api/chat")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2:3b")

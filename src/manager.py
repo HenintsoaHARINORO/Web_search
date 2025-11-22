@@ -13,10 +13,8 @@ class PortfolioManager:
         self.filename = filename
         self.fieldnames = [
             'company_name',
-            'search_date',
             'resume',
-            'comments',
-            'last_updated'
+            'comments'
         ]
         self._initialize_csv()
 
@@ -40,11 +38,8 @@ class PortfolioManager:
             writer = csv.DictWriter(f, fieldnames=self.fieldnames)
             writer.writerow({
                 'company_name': company_name,
-                'search_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                 'resume': resume,
-                'comments': initial_comment,
-                'last_updated': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            })
+                'comments': initial_comment            })
         return True
 
     def add_comment(self, company_name: str, new_comment: str):
@@ -90,37 +85,3 @@ class PortfolioManager:
             writer = csv.DictWriter(f, fieldnames=self.fieldnames)
             writer.writeheader()
             writer.writerows(companies)
-
-
-if __name__ == "__main__":
-    portfolio = PortfolioManager()
-
-    # 1. Rechercher et ajouter une entreprise avec scraping
-    company_name = "Yas Madagascar"
-    print(f"\n{'=' * 60}")
-    print(f"Analyse de: {company_name}")
-    print('=' * 60)
-
-    search_results, scraped_content, resume = research_company(company_name, scrape_first=True)
-
-    if portfolio.add_company(company_name, resume, "Entreprise télécommunication"):
-        print(f"\n✓ {company_name} ajouté au portefeuille")
-    else:
-        print(f"\n✗ {company_name} existe déjà dans le portefeuille")
-
-    # 2. Ajouter un commentaire
-    if portfolio.add_comment(company_name, "Contact établi"):
-        print(f"✓ Commentaire ajouté")
-
-    # 3. Récupérer les infos
-    company_info = portfolio.get_company(company_name)
-    if company_info:
-        print(f"\n--- Informations sur {company_name} ---")
-        print(f"Résumé: {company_info['resume']}")
-        print(f"Commentaires: {company_info['comments']}")
-
-    # 4. Voir toutes les entreprises
-    all_companies = portfolio.get_all_companies()
-    print(f"\n--- Portefeuille: {len(all_companies)} entreprise(s) ---")
-    for c in all_companies:
-        print(f"  • {c['company_name']}")
