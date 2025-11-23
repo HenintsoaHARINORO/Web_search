@@ -179,8 +179,11 @@ def main():
             for i, company in enumerate(companies):
                 with st.expander(f"{company['company_name']}", expanded=False):
                     st.markdown(f"Résumé: {company['resume']}")
-                    st.markdown(f"Commentaires: {company['comments'] if company['comments'] else 'Aucun'}")
-
+                    last_comment = st.session_state.portfolio.get_last_comment(company['company_name'])
+                    if last_comment:
+                        st.markdown(f"**Dernier commentaire:** {last_comment}")
+                    else:
+                        st.markdown(f"**Dernier commentaire:** Aucun")
                     # Option pour ajouter un commentaire
                     new_comment = st.text_input(f"Ajouter un commentaire:", key=f"comment_{i}")
                     if st.button("Ajouter", key=f"btn_{i}"):

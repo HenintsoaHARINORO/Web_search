@@ -70,23 +70,41 @@ class PortfolioRAG:
         documents = []
 
         if not os.path.exists(self.csv_file):
-            print(f"❌ Fichier {self.csv_file} non trouvé")
+            print(f"Fichier {self.csv_file} non trouvé")
             return documents
 
         with open(self.csv_file, 'r', newline='', encoding='utf-8') as f:
             reader = csv.DictReader(f)
 
             for row in reader:
+                # Extraire le dernier commentaire sans date
+                comments_text = row['comments'] if row['comments'] else 'Aucun commentaire'
+
+                # Si des commentaires existent, extraire le dernier sans date
+                if comments_text and comments_text != 'Aucun commentaire':
+                    comments_list = comments_text.split(' | ')
+                    last_comment = comments_list[-1]
+
+                    # Enlever la date [YYYY-MM-DD HH:MM] si présente
+                    if ']' in last_comment:
+                        last_comment_clean = last_comment.split('] ', 1)[-1]
+                    else:
+                        last_comment_clean = last_comment
+
+                    comments_display = f"Dernier commentaire: {last_comment_clean}"
+                else:
+                    comments_display = 'Aucun commentaire'
+
                 # Créer un contenu structuré pour chaque entreprise
                 content = f"""
-Entreprise: {row['company_name']}
+    Entreprise: {row['company_name']}
 
-Résumé:
-{row['resume']}
+    Résumé:
+    {row['resume']}
 
-Commentaires:
-{row['comments'] if row['comments'] else 'Aucun commentaire'}
-"""
+    Commentaires:
+    {comments_display}
+    """
 
                 doc = Document(
                     page_content=content,
@@ -119,11 +137,18 @@ Commentaires:
     def build_vectorstore(self, force_rebuild: bool = False):
         """Build or load the FAISS vector store with automatic update detection."""
         if not os.path.exists(self.csv_file):
-            print(f"❌ Fichier source CSV {self.csv_file} non trouvé.")
+            print(f"Fichier source CSV {self.csv_file} non trouvé.")
             return
 
         vectorstore_exists = os.path.exists(self.vector_store_path)
-        needs_update = self._needs_update()
+
+        # Check if CSV was modified BEFORE loading vector store
+        needs_update = self._needs_update() if vectorstore_exists else False
+
+        # If CSV changed, force a complete rebuild
+        if needs_update:
+            print("Modifications détectées dans le CSV, reconstruction complète...")
+            force_rebuild = True
 
         if vectorstore_exists and not force_rebuild:
             print("Chargement du vector store existant...")
@@ -133,19 +158,13 @@ Commentaires:
                     self.embeddings,
                     allow_dangerous_deserialization=True
                 )
-                print("Vector store chargé.")
-
-                # Check if CSV was modified -> incremental update
-                if needs_update:
-                    print("📝 Modifications détectées dans le CSV...")
-                    self._update_vectorstore_incrementally()
-                else:
-                    print("Index déjà à jour.")
+                print("Vector store chargé et à jour.")
                 return
             except Exception as e:
                 print(f"Erreur lors du chargement : {e}. Reconstruction forcée...")
                 force_rebuild = True
 
+        # Full rebuild (either first time or after detecting changes)
         if not vectorstore_exists or force_rebuild:
             print("Construction complète du vector store...")
             documents = self.load_portfolio_data()
@@ -156,10 +175,10 @@ Commentaires:
             self.vectorstore = FAISS.from_documents(documents, self.embeddings)
             self.vectorstore.save_local(self.vector_store_path)
 
-            # Save metadata
+            # Save metadata with current timestamp
             company_names = [doc.metadata["company_name"] for doc in documents]
             self._save_index_metadata(company_names)
-            print(f"Vector store créé et sauvegardé dans {self.vector_store_path}")
+            print(f"Vector store créé avec {len(documents)} entreprise(s) dans {self.vector_store_path}")
 
     def rebuild_index(self):
         """Force la reconstruction de l'index (à appeler après mise à jour du CSV)"""
