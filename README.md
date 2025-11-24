@@ -54,8 +54,27 @@ Le Vector Store n'est pas à jours lorsque les nouvelles entrées du CSV et on d
 ```bash
 docker-compose up --build 
 ```
+### 3. Exemple de fichier `.env`
 
-### 3. Captures
+```env
+# API Keys
+GOOGLE_API_KEY=your_google_api_key
+GOOGLE_CX=your_google_cx
+GOOGLE_API_URL=https://www.googleapis.com/customsearch/v1
+
+# Ollama Configuration
+OLLAMA_API_URL=http://ollama:11434/api/chat
+OLLAMA_API=http://ollama:11434
+OLLAMA_MODEL=llama3.2:3b
+
+# Paths
+DATA_DIR=data
+PORTFOLIO_FILE=portfolio_entreprises.csv
+VECTORSTORE_DIR=vectorstore
+VECTOR_STORE_PATH=portfolio_vectorstore
+
+```
+### 4. Captures
 
 ![Screenshot](assets/image1.png)
 ![Screenshot](assets/image2.png)
